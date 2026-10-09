@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Uç noktalar · Sunucum</title>
+<style>
+  :root { color-scheme: light; --krem:#F5EBD8; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, sans-serif; background:var(--krem); color:#3A1218; }
+  .tabs { display:flex; align-items:flex-end; gap:.35rem; padding:.6rem 1rem 0;
+          background:var(--krem); border-bottom:3px solid #2F6B45; }
+  .tab { padding:.6rem 1.2rem; font-weight:600; color:#F5EBD8; background:#6D1A2A;
+         border-radius:.6rem .6rem 0 0; text-decoration:none; opacity:.7; }
+  .tab:hover { opacity:1; }
+  .tab[aria-current=page] { opacity:1; box-shadow:inset 0 -4px 0 #A9D3A5; }
+  a:focus-visible, input:focus-visible { outline:2px solid #2F6B45; outline-offset:2px; }
+
+  main { max-width:70rem; margin:0 auto; padding:1.5rem 1rem 3rem; }
+  h1 { margin:0 0 .25rem; font-size:1.6rem; }
+  .lead { margin:0 0 1rem; opacity:.8; }
+  #filter { width:100%; max-width:24rem; padding:.55rem .8rem; font:inherit; color:inherit; background:#fff;
+            border:1px solid #C9B99A; border-radius:.5rem; }
+  .wrap { margin-top:1rem; overflow-x:auto; background:#fff; border-radius:.6rem;
+          box-shadow:0 .1rem .5rem rgba(58,18,24,.12); }
+  table { width:100%; border-collapse:collapse; font-size:.92rem; }
+  th, td { padding:.6rem .8rem; text-align:left; vertical-align:top; border-bottom:1px solid #EDE2CC; }
+  th { font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; color:#F5EBD8; background:#6D1A2A; }
+  tr:last-child td { border-bottom:0; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:.9em; }
+  td.path { white-space:nowrap; }
+  td.path a { color:#6D1A2A; }
+  .badge { display:inline-block; padding:.1rem .5rem; border-radius:.35rem; font-size:.78rem; font-weight:700;
+           color:#fff; white-space:nowrap; }
+  .GET { background:#2F6B45; }
+  .POST { background:#A8591B; }
+  .access { display:inline-block; padding:.1rem .5rem; border-radius:1rem; font-size:.78rem;
+            background:#EDE2CC; white-space:nowrap; }
+  .access.kilit { background:#6D1A2A; color:#F5EBD8; }
+  .empty { padding:1.5rem; text-align:center; opacity:.7; }
+</style>
+</head>
+<body>
+<nav class="tabs" aria-label="Sayfalar">
+  <a class="tab" href="/home.html">Ana sayfa</a>
+  <a class="tab" href="/endpoints.html" aria-current="page">Uç noktalar</a>
+</nav>
+<main>
+  <h1>Uç noktalar</h1>
+  <p class="lead">Bu sunucunun yanıt verdiği bütün adresler. Parametresiz GET adresleri tıklanabilir.</p>
+  <input id="filter" type="search" placeholder="Ara: yol, yöntem, açıklama…" aria-label="Uç noktalarda ara">
+  <div class="wrap">
+    <table>
+      <thead><tr><th>Yöntem</th><th>Yol</th><th>Erişim</th><th>Girdi</th><th>Açıklama</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="empty" id="empty" hidden>Eşleşen uç nokta yok.</div>
+  </div>
+</main>
+<script>
+const rows = document.getElementById("rows");
+const empty = document.getElementById("empty");
+const filter = document.getElementById("filter");
+let endpoints = [];
+
+function cell(row, className) {
+  const td = document.createElement("td");
+  if (className) td.className = className;
+  row.appendChild(td);
+  return td;
+}
+
+function render() {
+  const q = filter.value.trim().toLocaleLowerCase("tr");
+  rows.textContent = "";
+  for (const e of endpoints) {
+    if (q && !Object.values(e).join(" ").toLocaleLowerCase("tr").includes(q)) continue;
+    const tr = document.createElement("tr");
+    const method = document.createElement("span");
+    method.className = "badge " + e.method;
+    method.textContent = e.method;
+    cell(tr).appendChild(method);
+
+    const code = document.createElement("code");
+    code.textContent = e.path;
+    const path = cell(tr, "path");
+    // Yalnızca yer tutucusu olmayan GET adresleri doğrudan açılabilir.
+    if (e.method === "GET" && !e.path.includes("<")) {
+      const a = document.createElement("a");
+      a.href = e.path;
+      a.appendChild(code);
+      path.appendChild(a);
+    } else {
+      path.appendChild(code);
+    }
+
+    const access = document.createElement("span");
+    access.className = "access" + (e.access === "giriş" || e.access === "yükleme" ? " kilit" : "");
+    access.textContent = e.access;
+    cell(tr).appendChild(access);
+
+    const input = cell(tr);
+    if (e.input) input.appendChild(document.createElement("code")).textContent = e.input;
+    cell(tr).textContent = e.description;
+    rows.appendChild(tr);
+  }
+  empty.hidden = rows.children.length > 0;
+}
+
+filter.addEventListener("input", render);
+fetch("/api/endpoints").then(r => r.json()).then(data => { endpoints = data.endpoints; render(); })
+  .catch(() => { empty.textContent = "Liste yüklenemedi."; empty.hidden = false; });
+</script>
+</body>
+</html>

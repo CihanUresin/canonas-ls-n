@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Galeri · Sunucum</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  [hidden] { display:none !important; }
+  body { margin:0; min-height:100vh; font-family: system-ui, sans-serif;
+         background:#F5EBD8; color:#3A1218; }
+  body.drag { outline:3px dashed #2F6B45; outline-offset:-6px; }
+  .tabs { display:flex; align-items:flex-end; gap:.35rem; padding:.6rem 1rem 0;
+          border-bottom:3px solid #2F6B45; }
+  .tab { padding:.6rem 1.2rem; font-weight:600; color:#F5EBD8; background:#6D1A2A;
+         border-radius:.6rem .6rem 0 0; text-decoration:none; opacity:.7; }
+  .tab:hover { opacity:1; text-decoration:none; }
+  .tab[aria-current=page] { opacity:1; box-shadow:inset 0 -4px 0 #A9D3A5; }
+  .tabs .user { margin-left:auto; display:flex; align-items:center; gap:.6rem; flex-wrap:wrap;
+                justify-content:flex-end; padding-bottom:.4rem; font-size:.9rem; }
+  .btn { padding:.4rem .8rem; font:inherit; color:#fff; background:#6D1A2A; border:0;
+         border-radius:.5rem; cursor:pointer; text-decoration:none; }
+  .btn:hover { background:#8A2337; }
+  h1 { font-size:1.75rem; margin:0 0 1rem; }
+  button { font:inherit; cursor:pointer; }
+  button:focus-visible, a:focus-visible { outline:2px solid #2F6B45; outline-offset:2px; }
+  main { max-width:72rem; margin:0 auto; padding:1.5rem 1rem 3rem; }
+
+  #folders { display:flex; flex-wrap:wrap; gap:.5rem; margin:0 0 1.25rem; }
+  .chip { padding:.4rem .9rem; font-size:.9rem; color:#2F6B45; background:#FFFAF0;
+          border:1.5px solid #2F6B45; border-radius:999px; }
+  .chip:hover { background:#E3EEDD; }
+  .chip[aria-pressed=true] { color:#fff; background:#2F6B45; font-weight:600; }
+  .chip.new { border-style:dashed; }
+  /* Bir resim sürüklenirken klasör tuşları bırakma hedefi olur. */
+  body.moving .chip[data-drop] { border-style:dashed; }
+  body.moving .chip.new { visibility:hidden; }
+  .chip.over { color:#fff; background:#2F6B45; transform:scale(1.1); }
+  .box { width:calc(100% - 2rem); max-width:22rem; padding:0; color:#3A1218; background:#FFFAF0;
+         border:0; border-radius:.9rem; overflow:hidden; box-shadow:0 1rem 3rem rgba(45,10,18,.45); }
+  .box::backdrop { background:rgba(45,10,18,.6); }
+  .box h2 { font-size:1.1rem; margin:0; padding:.9rem 1.25rem; color:#F5EBD8; background:#6D1A2A;
+            border-bottom:4px solid #2F6B45; }
+  .box form > div { padding:1.25rem; }
+  .box label { display:block; font-size:.875rem; margin:0 0 .4rem; }
+  .box select, .box input { width:100%; padding:.6rem .7rem; font:inherit; color:inherit; background:#fff;
+                            border:1px solid #CDBB96; border-radius:.5rem; }
+  .box select:focus-visible, .box input:focus-visible { outline:2px solid #2F6B45; outline-offset:2px; }
+  .box .err { margin:.5rem 0 0; min-height:1.2em; font-size:.85rem; color:#B3261E; }
+  .box .actions { display:flex; justify-content:flex-end; gap:.5rem; margin-top:1rem; }
+  .box .actions .btn { padding:.5rem 1rem; }
+  .box .cancel { color:#6D1A2A; background:none; box-shadow:inset 0 0 0 1.5px #6D1A2A; }
+  .box .cancel:hover { background:#F5EBD8; }
+  .box .go { background:#2F6B45; font-weight:600; }
+  .box .go:hover { background:#3A8256; }
+  .box .go:disabled { opacity:.6; cursor:progress; }
+
+  #uploader { display:flex; align-items:center; gap:.75rem; flex-wrap:wrap; margin:0 0 1.25rem; }
+  #pick { padding:.6rem 1.1rem; font-weight:600; background:#2F6B45; }
+  #pick:hover { background:#3A8256; }
+  #hint { font-size:.85rem; opacity:.7; }
+  #bar { flex-basis:100%; width:100%; height:.5rem; accent-color:#2F6B45; }
+  #upstatus { flex-basis:100%; margin:0; font-size:.9rem; min-height:1.2em; white-space:pre-line; }
+
+  #grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(10rem, 1fr)); gap:.75rem;
+          list-style:none; margin:0; padding:0; }
+  #grid li { position:relative; }
+  .thumb { position:relative; display:block; width:100%; padding:0; background:#E9DCC0;
+           border:2px solid #2F6B45; border-radius:.75rem; overflow:hidden; aspect-ratio:3/4; }
+  .thumb img, .thumb video { display:block; width:100%; height:100%; object-fit:cover;
+                             transition:transform .2s; pointer-events:none; }
+  .thumb:hover img, .thumb:hover video { transform:scale(1.04); }
+  .play { position:absolute; inset:0; margin:auto; display:grid; place-items:center;
+          width:3rem; height:3rem; padding-left:.2rem; font-size:1.25rem; color:#fff;
+          background:rgba(109,26,42,.9); border-radius:50%; }
+  .thumb[draggable=true] { cursor:grab; }
+  .thumb.dragging { opacity:.4; }
+  #message { opacity:.75; text-align:center; padding:3rem 1rem; }
+
+  #viewer { width:100vw; height:100dvh; max-width:none; max-height:none; margin:0; padding:0;
+           border:0; background:rgba(45,10,18,.96); color:#F5EBD8; }
+  #viewer::backdrop { background:rgba(45,10,18,.96); }
+  .view { position:relative; width:100%; height:100%; display:grid; place-items:center; padding:3.5rem 1rem; }
+  /* Büyük görünüm: resmin çevresinde beyaz çiçekli köşe süsleri, üstte ve altta orta süs,
+     yanlarda ince çizgi. --p süs payı; süs ölçüleri 90 birim = --p olacak şekilde ölçeklenir. */
+  .view { --p:clamp(2rem, 7vmin, 4.5rem); --k:calc(var(--p) / 90); }
+  .frame { position:relative; display:grid; padding:var(--p); }
+  .big { display:block; object-fit:contain;
+         max-width:calc(100vw - 2rem - 2 * var(--p)); max-height:calc(100dvh - 7rem - 2 * var(--p));
+         min-width:calc(5.3 * var(--p)); min-height:calc(3.6 * var(--p)); }
+  .orn { position:absolute; pointer-events:none; background:no-repeat center / 100% 100%; }
+  .corner { width:calc(200 * var(--k)); height:calc(244 * var(--k));
+            background-image:url("data:image/png;base64,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"); }
+  .corner.tl { top:0; left:0; }
+  .corner.tr { top:0; right:0; transform:scaleX(-1); }
+  .corner.bl { bottom:0; left:0; transform:scaleY(-1); }
+  .corner.br { bottom:0; right:0; transform:scale(-1); }
+  .mid { left:50%; width:calc(246 * var(--k)); height:calc(57 * var(--k)); margin-left:calc(-123 * var(--k));
+         background-image:url("data:image/png;base64,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"); }
+  .mid.t { top:0; }
+  .mid.b { bottom:0; transform:scaleY(-1); }
+  .line { top:calc(244 * var(--k)); bottom:calc(244 * var(--k)); width:1px;
+          background:linear-gradient(#fff, rgba(255,255,255,0) 45%, rgba(255,255,255,0) 55%, #fff); }
+  .line.l { left:calc(36 * var(--k)); }
+  .line.r { right:calc(36 * var(--k)); }
+  .ctl { position:absolute; display:grid; place-items:center; width:2.75rem; height:2.75rem;
+         font-size:1.5rem; line-height:1; color:#fff; background:#6D1A2A;
+         border:1px solid #6D1A2A; border-radius:50%; }
+  .ctl:hover { background:#8A2337; }
+  #viewer :focus-visible { outline-color:#A9D3A5; }
+  #close { top:.75rem; right:.75rem; }
+  #prev { left:.75rem; top:50%; transform:translateY(-50%); }
+  #next { right:.75rem; top:50%; transform:translateY(-50%); }
+  #trash { left:.75rem; bottom:.75rem; }
+  #trash:hover { background:#b91c1c; }
+  #trash svg { width:1.3rem; height:1.3rem; }
+  #caption { position:absolute; bottom:.9rem; left:0; right:0; margin:0; padding:0 1rem;
+             text-align:center; font-size:.9rem; opacity:.85; }
+  @media (prefers-reduced-motion: reduce) { .thumb img, .thumb video { transition:none; } }
+</style>
+</head>
+<body>
+<nav class="tabs" aria-label="Sayfalar">
+  <a class="tab" id="home-tab" href="/home.html" hidden>Ana sayfa</a>
+  <a class="tab" id="mine-tab" href="/galeri.html" hidden>Galerim</a>
+  <span class="user">
+    <span id="email"></span>
+    <button class="btn" id="logout" type="button" hidden>Çıkış Yap</button>
+    <a class="btn" id="login" href="/index.html" hidden>Giriş Yap</a>
+  </span>
+</nav>
+<main>
+  <h1 id="title">Galeri</h1>
+
+  <div id="folders" role="group" aria-label="Klasörler" hidden></div>
+
+  <div id="uploader" hidden>
+    <button class="btn" id="pick" type="button">+ Resim / video yükle</button>
+    <input id="files" type="file" multiple hidden
+           accept="image/jpeg,image/png,image/webp,image/gif,image/avif,video/mp4,video/webm,video/quicktime,.m4v,.mov">
+    <span id="hint"></span>
+    <button class="btn" id="rmdir" type="button" hidden>Klasörü sil</button>
+    <progress id="bar" max="1" value="0" hidden></progress>
+    <p id="upstatus" role="status"></p>
+  </div>
+
+  <ul id="grid"></ul>
+  <p id="message" role="status">Yükleniyor…</p>
+</main>
+
+<dialog id="viewer" aria-label="Büyük görünüm">
+  <div class="view">
+    <div class="frame">
+      <span class="orn corner tl"></span><span class="orn corner tr"></span>
+      <span class="orn corner bl"></span><span class="orn corner br"></span>
+      <span class="orn mid t"></span><span class="orn mid b"></span>
+      <span class="orn line l"></span><span class="orn line r"></span>
+      <img class="big" id="big-img" alt="" hidden>
+      <video class="big" id="big-video" controls playsinline hidden></video>
+    </div>
+    <button class="ctl" id="close" type="button" aria-label="Kapat">×</button>
+    <button class="ctl" id="prev" type="button" aria-label="Önceki">‹</button>
+    <button class="ctl" id="next" type="button" aria-label="Sonraki">›</button>
+    <button class="ctl" id="trash" type="button" aria-label="Sil" title="Sil" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+           stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>
+      </svg>
+    </button>
+    <p id="caption"></p>
+  </div>
+</dialog>
+
+<dialog class="box" id="creator" aria-labelledby="creator-title">
+  <form id="creator-form" novalidate>
+    <h2 id="creator-title">Yeni klasör</h2>
+    <div>
+      <label for="folder-name">Klasörün adı</label>
+      <input id="folder-name" type="text" maxlength="50" autocomplete="off"
+             placeholder="örn. Yazlık kombinler" aria-describedby="creator-err">
+      <p class="err" id="creator-err" aria-live="polite"></p>
+      <div class="actions">
+        <button class="btn cancel" id="creator-cancel" type="button">Vazgeç</button>
+        <button class="btn go" id="creator-ok" type="submit">Oluştur</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<script>
+  const TYPES = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'avif', 'mp4', 'm4v', 'webm', 'mov'];
+  const $ = (id) => document.getElementById(id);
+  const grid = $('grid');
+  const message = $('message');
+  const viewer = $('viewer');
+  const bigImg = $('big-img');
+  const bigVideo = $('big-video');
+  const caption = $('caption');
+  const prev = $('prev');
+  const next = $('next');
+  const files = $('files');
+  const bar = $('bar');
+  const upstatus = $('upstatus');
+  const creator = $('creator');
+  const folderName = $('folder-name');
+  const creatorErr = $('creator-err');
+  let items = [];       // bütün klasörlerdeki dosyalar
+  let visible = [];     // seçili klasörde görünenler
+  let folders = [];
+  let folder = null;    // null = ana galeri (klasöre konmamış dosyalar)
+  let dragging = null;  // klasöre taşımak için sürüklenen dosya
+  let current = 0;
+  let canUpload = false;  // yalnızca kendi galerisinde ve yükleme izni varsa
+  let owner = null;       // galerisi gösterilen kullanıcının adı
+  let mine = false;
+  // ?u=ad başka bir kullanıcının galerisini gösterir; yoksa giriş yapanın kendi galerisi açılır.
+  const wanted = new URLSearchParams(location.search).get('u');
+  let maxUpload = Infinity;
+  let uploading = false;
+
+  // -- büyük görünüm --
+
+  const stopVideo = () => {
+    bigVideo.pause();
+    bigVideo.removeAttribute('src');
+    bigVideo.load();
+  };
+
+  const show = (i) => {
+    current = (i + visible.length) % visible.length;
+    const item = visible[current];
+    const isVideo = item.type === 'video';
+    stopVideo();
+    bigImg.hidden = isVideo;
+    bigVideo.hidden = !isVideo;
+    if (isVideo) {
+      bigVideo.src = item.url;
+      bigVideo.play().catch(() => {});
+    } else {
+      bigImg.src = item.url;
+      bigImg.alt = item.name;
+    }
+    caption.textContent = `${item.name} · ${current + 1} / ${visible.length}`;
+  };
+
+  const open = (i) => {
+    show(i);
+    prev.hidden = next.hidden = visible.length < 2;
+    $('trash').hidden = !canUpload;
+    viewer.showModal();
+  };
+
+  prev.addEventListener('click', () => show(current - 1));
+  next.addEventListener('click', () => show(current + 1));
+  $('close').addEventListener('click', () => viewer.close());
+  viewer.addEventListener('close', stopVideo);
+  // Resmin/videonun dışındaki boşluğa tıklanınca kapat.
+  viewer.addEventListener('click', (ev) => {
+    if (ev.target === viewer || ev.target.matches('.view, .frame')) viewer.close();
+  });
+  viewer.addEventListener('keydown', (ev) => {
+    // Video odaktayken ok tuşları videoyu sarar.
+    if (visible.length < 2 || ev.target === bigVideo) return;
+    if (ev.key === 'ArrowLeft') show(current - 1);
+    if (ev.key === 'ArrowRight') show(current + 1);
+  });
+
+  // -- liste --
+
+  // Hata iletisini döner; başarılıysa null. Yanıt gövdesi onOk'a verilir.
+  const post = (url, body, onOk) => fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }).then(async (res) => {
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return data.error || 'İşlem yapılamadı. Tekrar deneyin.';
+    if (onOk) onOk(data);
+    return null;
+  }).catch(() => 'Bağlantı hatası.');
+
+  // İşlemi yapar, hata varsa gösterir, listeyi yeniler.
+  const act = async (url, body) => {
+    const error = await post(url, body);
+    upstatus.textContent = error || '';
+    await load();
+    return !error;
+  };
+
+  $('trash').addEventListener('click', () => {
+    const item = visible[current];
+    if (!item || !confirm(`"${item.name}" silinsin mi?`)) return;
+    viewer.close();
+    act('/api/medya/sil', { file: item.file, folder: item.folder });
+  });
+
+  // Seçili klasör adres çubuğunda tutulur (#k=ad), böylece bağlantısı paylaşılabilir.
+  const select = (name) => {
+    folder = name;
+    history.replaceState(null, '', name === null ? location.pathname + location.search : '#k=' + encodeURIComponent(name));
+    render();
+  };
+
+  const chip = (label, pressed, onClick) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'chip';
+    btn.textContent = label;
+    if (pressed !== null) btn.setAttribute('aria-pressed', String(pressed));
+    btn.addEventListener('click', onClick);
+    return btn;
+  };
+
+  const renderFolders = () => {
+    const bar = $('folders');
+    bar.replaceChildren();
+    bar.hidden = !folders.length && !canUpload;
+    if (folders.length) {
+      if (canUpload) {
+        // Yalnızca klasördeki bir dosya sürüklenirken görünür: klasörden çıkarıp ana galeriye taşır.
+        const home = chip('↩ Ana galeri', null, () => select(null));
+        home.dataset.drop = '';
+        home.id = 'home-drop';
+        home.hidden = true;
+        bar.append(home);
+      }
+      for (const name of folders) {
+        const count = items.filter((item) => item.folder === name).length;
+        // Seçili klasöre yeniden basmak ana galeriye döner.
+        const btn = chip(`${name} (${count})`, folder === name, () => select(folder === name ? null : name));
+        btn.dataset.drop = name;
+        bar.append(btn);
+      }
+    }
+    if (canUpload) {
+      const add = chip('+ Yeni klasör', null, () => {
+        folderName.value = '';
+        creatorErr.textContent = '';
+        creator.showModal();
+        folderName.focus();
+      });
+      add.classList.add('new');
+      bar.append(add);
+    }
+  };
+
+  const endDrag = () => {
+    dragging = null;
+    document.body.classList.remove('moving');
+    const home = $('home-drop');
+    if (home) home.hidden = true;
+    document.querySelectorAll('.dragging, .chip.over').forEach((el) => el.classList.remove('dragging', 'over'));
+  };
+
+  const render = () => {
+    if (folder !== null && !folders.includes(folder)) folder = null;
+    visible = items.filter((item) => item.folder === (folder ?? ''));
+    renderFolders();
+    $('hint').textContent = folder === null
+      ? 'ya da dosyaları bu sayfaya sürükleyip bırakın' + (folders.length ? ' · taşımak için resmi klasörün üstüne sürükleyin' : '')
+      : `“${folder}” klasörüne yüklenir · taşımak için resmi başka klasörün üstüne sürükleyin`;
+    $('rmdir').hidden = folder === null;
+    grid.replaceChildren();
+    message.hidden = visible.length > 0;
+    message.textContent = folder !== null ? 'Bu klasör boş.'
+      : folders.length ? 'Görmek için bir klasör seçin.'
+      : mine ? 'Henüz bir şey eklenmemiş.'
+      : owner ? 'Bu galeride henüz bir şey yok.'
+      : 'Kendi galerinizi oluşturmak için giriş yapın.';
+    visible.forEach((item, i) => {
+      const li = document.createElement('li');
+      // Bağlantı olması sürüklemeyi her tarayıcıda mümkün kılar; tıklayınca büyük görünüm açılır.
+      const btn = document.createElement('a');
+      btn.href = item.url;
+      btn.className = 'thumb';
+      btn.draggable = canUpload && folders.length > 0;
+      btn.addEventListener('dragstart', (ev) => {
+        dragging = item;
+        ev.dataTransfer.effectAllowed = 'move';
+        ev.dataTransfer.setData('text/plain', item.name);
+        btn.classList.add('dragging');
+        document.body.classList.add('moving');
+        const home = $('home-drop');
+        if (home) home.hidden = !item.folder;
+      });
+      btn.addEventListener('dragend', endDrag);
+      if (item.type === 'video') {
+        btn.setAttribute('aria-label', `${item.name} videosunu oynat`);
+        const el = document.createElement('video');
+        // #t ile ilk kare küçük resim olarak görünür.
+        el.src = item.url + '#t=0.1';
+        el.preload = 'metadata';
+        el.muted = true;
+        el.playsInline = true;
+        const play = document.createElement('span');
+        play.className = 'play';
+        play.textContent = '▶';
+        play.setAttribute('aria-hidden', 'true');
+        btn.append(el, play);
+      } else {
+        btn.setAttribute('aria-label', `${item.name} resmini büyüt`);
+        const el = document.createElement('img');
+        el.src = item.url;
+        el.alt = item.name;
+        el.loading = 'lazy';
+        btn.append(el);
+      }
+      btn.addEventListener('click', (ev) => { ev.preventDefault(); open(i); });
+      li.append(btn);
+      grid.append(li);
+    });
+  };
+
+  const load = () => fetch('/api/medya' + (wanted ? '?u=' + encodeURIComponent(wanted) : '')).then(async (res) => {
+    if (res.status === 404) {
+      $('title').textContent = 'Galeri';
+      grid.replaceChildren();
+      $('folders').hidden = $('uploader').hidden = true;
+      message.hidden = false;
+      message.textContent = `“${wanted}” adında bir kullanıcı yok.`;
+      return;
+    }
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    items = data.items;
+    folders = data.folders;
+    maxUpload = data.max_upload;
+    owner = data.owner;
+    mine = data.mine;
+    canUpload = Boolean(mine && data.user.can_upload);
+    const title = mine ? 'Galerim' : owner ? `${owner} · Galeri` : 'Galeri';
+    $('title').textContent = title;
+    document.title = `${title} · Sunucum`;
+    $('email').textContent = data.user ? data.user.username || data.user.email : '';
+    $('home-tab').hidden = false;  // ana sayfa herkese açık
+    $('mine-tab').hidden = $('logout').hidden = !data.user;
+    if (mine) $('mine-tab').setAttribute('aria-current', 'page');
+    else $('mine-tab').removeAttribute('aria-current');
+    $('login').hidden = Boolean(data.user);
+    $('uploader').hidden = !canUpload;
+    render();
+  }).catch(() => {
+    message.hidden = false;
+    message.textContent = 'Galeri yüklenemedi. Sayfayı yenileyip tekrar deneyin.';
+  });
+
+  // -- klasör işlemleri --
+
+  // Sürüklenen resim bir klasör tuşuna bırakılınca o klasöre taşınır.
+  const dropTarget = (ev) => {
+    const el = dragging && ev.target.closest('.chip[data-drop]');
+    return el && el.dataset.drop !== dragging.folder ? el : null;
+  };
+  $('folders').addEventListener('dragover', (ev) => {
+    const el = dropTarget(ev);
+    if (!el) return;
+    ev.preventDefault();
+    ev.dataTransfer.dropEffect = 'move';
+    el.classList.add('over');
+  });
+  $('folders').addEventListener('dragleave', (ev) => {
+    const el = ev.target.closest('.chip');
+    if (el) el.classList.remove('over');
+  });
+  $('folders').addEventListener('drop', (ev) => {
+    const el = dropTarget(ev);
+    if (!el) return;
+    ev.preventDefault();
+    const item = dragging;
+    endDrag();
+    act('/api/medya/tasi', { file: item.file, folder: item.folder, to: el.dataset.drop });
+  });
+
+  // Yeni klasör penceresi: hata olursa pencere açık kalır ve hatayı gösterir.
+  $('creator-cancel').addEventListener('click', () => creator.close());
+  $('creator-form').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const name = folderName.value.trim();
+    if (!name) {
+      creatorErr.textContent = 'Bir ad yazın.';
+      folderName.focus();
+      return;
+    }
+    $('creator-ok').disabled = true;
+    let created = null;
+    const error = await post('/api/klasor', { name }, (data) => { created = data.folder; });
+    $('creator-ok').disabled = false;
+    if (error) {
+      creatorErr.textContent = error;
+      folderName.focus();
+      return;
+    }
+    creator.close();
+    upstatus.textContent = '';
+    await load();
+    select(created);
+  });
+
+  $('rmdir').addEventListener('click', () => {
+    if (folder !== null && confirm(`"${folder}" klasörü silinsin mi?`)) act('/api/klasor/sil', { name: folder });
+  });
+
+  // -- yükleme --
+
+  const uploadOne = (file, label) => new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/yukle?name=' + encodeURIComponent(file.name)
+      + '&klasor=' + encodeURIComponent(folder ?? ''));
+    xhr.upload.onprogress = (ev) => {
+      if (!ev.lengthComputable) return;
+      bar.value = ev.loaded / ev.total;
+      upstatus.textContent = `${label} ${file.name} yükleniyor… %${Math.round(100 * ev.loaded / ev.total)}`;
+    };
+    xhr.onload = () => {
+      if (xhr.status === 201) return resolve(null);
+      let error = 'Yüklenemedi.';
+      try { error = JSON.parse(xhr.responseText).error || error; } catch {}
+      resolve(error);
+    };
+    xhr.onerror = () => resolve('Bağlantı hatası.');
+    xhr.send(file);
+  });
+
+  const upload = async (list) => {
+    if (uploading || !list.length) return;
+    uploading = true;
+    $('pick').disabled = true;
+    bar.hidden = false;
+    const errors = [];
+    let done = 0;
+    for (const [i, file] of list.entries()) {
+      const ext = file.name.split('.').pop().toLowerCase();
+      let error;
+      if (!TYPES.includes(ext)) error = 'Desteklenmeyen dosya türü.';
+      else if (file.size > maxUpload) error = `Dosya çok büyük (en fazla ${Math.floor(maxUpload / 1024 / 1024)} MB).`;
+      else {
+        bar.value = 0;
+        error = await uploadOne(file, list.length > 1 ? `(${i + 1}/${list.length})` : '');
+      }
+      if (error) errors.push(`${file.name}: ${error}`);
+      else done++;
+    }
+    uploading = false;
+    $('pick').disabled = false;
+    bar.hidden = true;
+    files.value = '';
+    upstatus.textContent = [done ? `${done} dosya yüklendi.` : '', ...errors].filter(Boolean).join('\n');
+    load();
+  };
+
+  $('pick').addEventListener('click', () => files.click());
+  files.addEventListener('change', () => upload([...files.files]));
+
+  // Sürükle-bırak
+  const hasFiles = (ev) => canUpload && !dragging && ev.dataTransfer && [...ev.dataTransfer.types].includes('Files');
+  addEventListener('dragover', (ev) => {
+    if (!hasFiles(ev)) return;
+    ev.preventDefault();
+    document.body.classList.add('drag');
+  });
+  addEventListener('dragleave', (ev) => {
+    if (!ev.relatedTarget) document.body.classList.remove('drag');
+  });
+  addEventListener('drop', (ev) => {
+    if (!hasFiles(ev)) return;
+    ev.preventDefault();
+    document.body.classList.remove('drag');
+    upload([...ev.dataTransfer.files]);
+  });
+
+  $('logout').addEventListener('click', async () => {
+    await fetch('/api/logout', { method: 'POST' });
+    location.reload();
+  });
+
+  if (location.hash.startsWith('#k=')) {
+    try { folder = decodeURIComponent(location.hash.slice(3)); } catch {}
+  }
+  load().then(() => {
+    // Ana galeride gösterilecek dosya yoksa ilk klasörle açıl.
+    if (folder === null && folders.length && !items.some((item) => !item.folder)) select(folders[0]);
+  });
+</script>
+</body>
+</html>

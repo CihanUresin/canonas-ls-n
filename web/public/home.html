@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kral Hoşgeldin · Sunucum</title>
+<style>
+  :root { color-scheme: light; --krem:#F5EBD8; }
+  * { box-sizing: border-box; }
+  body { margin:0; height:100vh; height:100dvh; overflow:hidden; display:flex; flex-direction:column;
+         font-family: system-ui, sans-serif; background:var(--krem); color:#3A1218; }
+  .tabs { position:relative; z-index:3; display:flex; align-items:flex-end; gap:.35rem; padding:.6rem 1rem 0;
+          background:var(--krem); border-bottom:3px solid #2F6B45; }
+  .tab { padding:.6rem 1.2rem; font-weight:600; color:#F5EBD8; background:#6D1A2A;
+         border-radius:.6rem .6rem 0 0; text-decoration:none; opacity:.7; }
+  .tab:hover { opacity:1; text-decoration:none; }
+  .tab[aria-current=page] { opacity:1; box-shadow:inset 0 -4px 0 #A9D3A5; }
+  .tabs .user { margin-left:auto; display:flex; align-items:center; gap:.6rem; flex-wrap:wrap;
+                justify-content:flex-end; padding-bottom:.4rem; font-size:.9rem; }
+  #logout, #login { padding:.4rem .8rem; font:inherit; color:#fff; background:#6D1A2A; border:0;
+                    border-radius:.5rem; cursor:pointer; text-decoration:none; }
+  #logout:hover, #login:hover { background:#8A2337; }
+  [hidden] { display:none !important; }
+  a:focus-visible, button:focus-visible { outline:2px solid #2F6B45; outline-offset:2px; }
+
+  /* Sekmelerin altında kalan alan: resimli bölümler alt alta durur ve serbestçe kaydırılır.
+     Her bölüm alanın yatayda 3/4'ünü, dikeyde yarısını kaplar; kalan yer krem zemindir. */
+  .stage { position:relative; flex:1; min-height:0; }
+  .slides { position:absolute; inset:0; overflow-y:auto; }
+  .slide { position:relative; width:75%; height:50%; margin:1.5rem auto; overflow:hidden;
+           display:flex; justify-content:center;
+           background:var(--krem) center / cover no-repeat; }
+  /* Resim kırpılmadan bütünüyle sığar; kaplamadığı yerlerde o resmin bulanık hali arka plan olur. */
+  .pic { display:block; flex:none; height:100%; width:auto; max-width:100%; object-fit:contain; }
+  /* Resmin yanında kalan boşluk: 1. resimde karşılama yazısı, 2. resimde kullanıcı arama burada durur. */
+  .side { flex:1; min-width:0; display:flex; align-items:center; justify-content:center; padding:1.5rem; }
+
+  /* 1. bölüm: resim ortada durur, yazı gizlidir. Fare bölümün üstüne gelince resim sağa kayar ve yazı
+     solda belirir; fare ayrılınca resim ortaya döner ve yazı kaybolur.
+     2. bölüm: resim sağda durur, arama gizlidir. Fare gelince (ya da arama kutusu kullanılırken) resim sola
+     kayar ve arama sağda belirir. */
+  @media (min-width: 641px) {
+    .hos .pic { position:absolute; top:0; left:50%; z-index:1; max-width:62%; object-position:right center;
+                transform:translateX(-50%); transition:left .7s ease, transform .7s ease; }
+    .hos:hover .pic { left:100%; transform:translateX(-100%); }
+    .hos .side { position:absolute; inset:0 auto 0 0; width:50%; opacity:0; transition:opacity .3s ease; }
+    .hos:hover .side { opacity:1; transition:opacity .5s ease .25s; }
+    .ara .pic { position:absolute; top:0; left:100%; z-index:1; max-width:62%; object-position:left center;
+                transform:translateX(-100%); transition:left 1.6s ease, transform 1.6s ease; }
+    .ara:hover .pic, .ara:focus-within .pic { left:0; transform:none; }
+    .ara .side { position:absolute; inset:0 0 0 auto; width:50%; opacity:0; transition:opacity .3s ease; }
+    .ara:hover .side, .ara:focus-within .side { opacity:1; transition:opacity .6s ease 1.1s; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hos .pic, .hos .side, .ara .pic, .ara .side { transition:none !important; }
+  }
+
+  .welcome { text-align:center; color:#fff; text-shadow:0 .15rem .8rem rgba(0,0,0,.55); }
+  h1 { font-size:clamp(2rem, 4.5vw, 4rem); line-height:1.1; margin:0 0 .75rem; }
+  .welcome p { margin:.25rem 0; font-size:1rem; opacity:.9; }
+  #clock { font-variant-numeric: tabular-nums; font-size:clamp(1.2rem, 2vw, 1.75rem); margin-top:1rem; }
+
+  /* Kullanıcı arama: 2. resmin yanındaki boşlukta durur; yarı saydam olduğu için zeminin rengini alır. */
+  #search { width:min(20rem, 100%); display:flex; flex-direction:column; padding:1rem; color:#fff;
+            background:rgba(40,28,18,.3); border:1px solid rgba(255,255,255,.35); border-radius:.9rem;
+            text-shadow:0 .1rem .4rem rgba(0,0,0,.45); }
+  #search label { display:block; font-size:1.1rem; font-weight:700; margin:0 0 .5rem; }
+  #q { width:100%; padding:.55rem .75rem; font:inherit; color:#fff; background:rgba(255,255,255,.16);
+       border:1px solid rgba(255,255,255,.5); border-radius:.5rem; }
+  #q::placeholder { color:rgba(255,255,255,.75); }
+  #q:focus-visible { outline:2px solid #fff; outline-offset:2px; }
+  #users { list-style:none; margin:.6rem 0 0; padding:0; display:grid; gap:.4rem; overflow-y:auto; max-height:17vh; }
+  #users:empty { margin:0; }
+  #users a { display:flex; justify-content:space-between; gap:.5rem; padding:.5rem .75rem; color:#fff;
+             background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.4); border-radius:.5rem;
+             text-decoration:none; font-weight:600; overflow-wrap:anywhere; }
+  #users a:hover { background:rgba(255,255,255,.26); }
+  #users a:focus-visible { outline:2px solid #fff; outline-offset:2px; }
+  #users small { font-weight:400; opacity:.8; white-space:nowrap; }
+  #found { font-size:.9rem; margin:.6rem 0 0; }
+  #found:empty { display:none; }
+
+  /* Dar ekran: yazı ve arama resmin üstüne/altına geçer; kullanıcı listesi yalnızca arama kullanılırken açılır. */
+  @media (max-width: 640px) {
+    .slide { flex-direction:column; width:94%; height:70%; margin:1rem auto; }
+    .slide .pic { flex:1; min-height:0; width:100%; height:auto; max-width:100%; object-position:center; }
+    .side { flex:none; padding:1rem; }
+    #search:not(:focus-within) #users, #search:not(:focus-within) #found { display:none; }
+  }
+</style>
+</head>
+<body>
+<nav class="tabs" aria-label="Sayfalar">
+  <a class="tab" href="/home.html" aria-current="page">Ana sayfa</a>
+  <a class="tab" id="mine-tab" href="/galeri.html" hidden>Galerim</a>
+  <span class="user"><span id="email"></span><button id="logout" type="button" hidden>Çıkış Yap</button>
+    <a id="login" href="/index.html" hidden>Giriş Yap</a></span>
+</nav>
+<main class="stage">
+  <div class="slides">
+    <section class="slide hos" style="background-image:url(/gorsel/bg1-arka.jpg)">
+      <div class="side">
+        <div class="welcome">
+          <h1>Kral Hoşgeldin</h1>
+          <p>Bu sayfa Ubuntu sunucudan, 8000 portundan yayınlanıyor.</p>
+          <div id="clock"></div>
+        </div>
+      </div>
+      <img class="pic" src="/gorsel/bg1.jpg" alt="Arka plan resmi 1">
+    </section>
+    <section class="slide ara" style="background-image:url(/gorsel/bg2-arka.jpg)">
+      <img class="pic" src="/gorsel/bg2.jpg" alt="Arka plan resmi 2">
+      <div class="side">
+        <form id="search" role="search">
+          <label for="q">Kullanıcı ara</label>
+          <input id="q" type="search" maxlength="20" autocomplete="off" autocapitalize="none" spellcheck="false"
+                 placeholder="Galerisini görmek istediğiniz kullanıcının adı">
+          <ul id="users"></ul>
+          <p id="found" role="status"></p>
+        </form>
+      </div>
+    </section>
+    <section class="slide" style="background-image:url(/gorsel/bg3-arka.jpg)">
+      <img class="pic" src="/gorsel/bg3.jpg" alt="Arka plan resmi 3">
+    </section>
+  </div>
+</main>
+<script>
+  const el = document.getElementById('clock');
+  const tick = () => el.textContent = new Date().toLocaleString('tr-TR');
+  tick(); setInterval(tick, 1000);
+
+  fetch('/api/me').then(r => r.ok ? r.json() : Promise.reject()).then(d => {
+    me = d.user.username;
+    document.getElementById('email').textContent = me || d.user.email;
+    document.getElementById('mine-tab').hidden = document.getElementById('logout').hidden = false;
+  }).catch(() => {
+    // giriş yapılmamış: ana sayfa yine görünür, sağ üstte yalnızca "Giriş Yap" durur
+    document.getElementById('login').hidden = false;
+  }).finally(() => search());
+
+  // -- kullanıcı arama: sonuçlar o kullanıcının galerisine götürür --
+  const q = document.getElementById('q');
+  const users = document.getElementById('users');
+  const found = document.getElementById('found');
+  let me = null;
+  let timer = null;
+  let latest = 0;
+
+  const search = async () => {
+    const query = q.value.trim();
+    const turn = ++latest;
+    let names;
+    try {
+      const res = await fetch('/api/kullanicilar?q=' + encodeURIComponent(query));
+      if (!res.ok) throw new Error();
+      names = (await res.json()).users;
+    } catch {
+      if (turn === latest) found.textContent = 'Kullanıcılar yüklenemedi. Tekrar deneyin.';
+      return;
+    }
+    if (turn !== latest) return;  // daha yeni bir arama sürüyor
+    users.replaceChildren(...names.map((name) => {
+      const li = document.createElement('li');
+      const a = document.createElement('a');
+      a.href = '/galeri.html?u=' + encodeURIComponent(name);
+      a.textContent = name;
+      const note = document.createElement('small');
+      note.textContent = name === me ? 'sizin galeriniz' : 'galerisini gör';
+      a.append(note);
+      li.append(a);
+      return li;
+    }));
+    found.textContent = names.length ? '' : query ? `“${query}” adında bir kullanıcı yok.` : 'Henüz başka kullanıcı yok.';
+  };
+
+  q.addEventListener('input', () => {
+    clearTimeout(timer);
+    timer = setTimeout(search, 200);
+  });
+  document.getElementById('search').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    clearTimeout(timer);
+    search();
+  });
+  document.getElementById('logout').addEventListener('click', async () => {
+    await fetch('/api/logout', { method: 'POST' });
+    location.href = '/';
+  });
+</script>
+</body>
+</html>
