@@ -111,6 +111,35 @@ app.post('/api/logout', (req, res) => {
 
 app.get('/api/me', requireAuth, (req, res) => res.json(publicUser(req.user)))
 
+// Tarayıcıdan tüm endpoint'leri görmek ve denemek için: /api/docs
+const ENDPOINTS = [
+  { method: 'POST', path: '/api/register', desc: 'Kayıt ol ve oturum aç', body: { email: 'sen@mail.com', password: '123456' } },
+  { method: 'POST', path: '/api/login', desc: 'Giriş yap', body: { email: 'sen@mail.com', password: '123456' } },
+  { method: 'POST', path: '/api/logout', desc: 'Çıkış yap (cookie siler)' },
+  { method: 'GET', path: '/api/me', desc: 'Oturumdaki kullanıcı' },
+]
+
+app.get(['/api', '/api/docs'], (req, res) => {
+  res.type('html').send(`<!doctype html><html lang="tr"><meta charset="utf-8"><title>API</title>
+<style>body{font:15px system-ui;max-width:760px;margin:2rem auto;padding:0 1rem}
+.ep{border:1px solid #ccc;border-radius:8px;padding:12px;margin:12px 0}
+b{display:inline-block;min-width:52px}textarea{width:100%;height:70px;font:13px monospace}
+pre{background:#f4f4f4;padding:8px;border-radius:6px;white-space:pre-wrap}</style>
+<h1>API Endpoint'leri</h1><div id="l"></div>
+<script>
+const eps=${JSON.stringify(ENDPOINTS)};
+const l=document.getElementById('l');
+eps.forEach(e=>{const d=document.createElement('div');d.className='ep';
+d.innerHTML='<b>'+e.method+'</b><code>'+e.path+'</code> — '+e.desc+
+(e.body?'<br><textarea>'+JSON.stringify(e.body,null,2)+'</textarea>':'')+
+'<br><button>Dene</button><pre></pre>';
+d.querySelector('button').onclick=async()=>{const t=d.querySelector('textarea');
+const r=await fetch(e.path,{method:e.method,headers:{'Content-Type':'application/json'},body:t?t.value:undefined});
+const x=await r.text();d.querySelector('pre').textContent=r.status+' '+(x||'(boş)')};
+l.append(d)});
+</script></html>`)
+})
+
 app.use('/api', (req, res) => res.status(404).json({ error: 'Bulunamadı.' }))
 
 // Prod'da build edilmiş frontend'i de sun.
