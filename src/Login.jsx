@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { login } from './api.js'
+import { login, register } from './api.js'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -10,6 +10,8 @@ export default function Login({ onSuccess }) {
   const [errors, setErrors] = useState({})
   const [serverError, setServerError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [mode, setMode] = useState('login')
+  const isRegister = mode === 'register'
 
   function validate() {
     const e = {}
@@ -27,7 +29,7 @@ export default function Login({ onSuccess }) {
 
     setLoading(true)
     try {
-      onSuccess(await login({ email, password }))
+      onSuccess(await (isRegister ? register : login)({ email, password }))
     } catch (err) {
       setServerError(err.message)
     } finally {
@@ -38,8 +40,10 @@ export default function Login({ onSuccess }) {
   return (
     <main className="page">
       <form className="card" onSubmit={handleSubmit} noValidate>
-        <h1>Giriş Yap</h1>
-        <p className="muted">Hesabına erişmek için bilgilerini gir.</p>
+        <h1>{isRegister ? 'Kayıt Ol' : 'Giriş Yap'}</h1>
+        <p className="muted">
+          {isRegister ? 'Yeni bir hesap oluştur.' : 'Hesabına erişmek için bilgilerini gir.'}
+        </p>
 
         {serverError && <div className="alert" role="alert">{serverError}</div>}
 
@@ -59,7 +63,7 @@ export default function Login({ onSuccess }) {
           <input
             id="password"
             type={showPw ? 'text' : 'password'}
-            autoComplete="current-password"
+            autoComplete={isRegister ? 'new-password' : 'current-password'}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             aria-invalid={!!errors.password}
@@ -71,10 +75,23 @@ export default function Login({ onSuccess }) {
         {errors.password && <span className="error">{errors.password}</span>}
 
         <button className="btn" type="submit" disabled={loading}>
-          {loading ? 'Giriş yapılıyor…' : 'Giriş Yap'}
+          {loading ? 'Lütfen bekle…' : isRegister ? 'Kayıt Ol' : 'Giriş Yap'}
         </button>
 
-        <p className="hint">Demo: demo@example.com / 123456</p>
+        <p className="hint">
+          {isRegister ? 'Zaten hesabın var mı?' : 'Hesabın yok mu?'}{' '}
+          <button
+            type="button"
+            className="link"
+            onClick={() => {
+              setMode(isRegister ? 'login' : 'register')
+              setErrors({})
+              setServerError('')
+            }}
+          >
+            {isRegister ? 'Giriş yap' : 'Kayıt ol'}
+          </button>
+        </p>
       </form>
     </main>
   )
